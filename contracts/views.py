@@ -1,4 +1,7 @@
+from datetime import date
+
 from django.db import DatabaseError, connection, transaction
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -6,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 
 from .models import Contract
 from .serializers import ContractSerializer, EndorsementSerializer
-from .services import validate_endorsement
+from .services import calculate_position, validate_endorsement
 
 
 @api_view(["GET", "POST"])
@@ -37,6 +40,36 @@ def add_endorsement(request, mga_reference):
         serializer.save(contract=contract)
 
     return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET"])
+def contract_detail(request, mga_reference):
+    contract = get_object_or_404(Contract, mga_reference=mga_reference)
+
+    return Response({
+        "slip": ContractSerializer(contract).data,
+        "endorsements": EndorsementSerializer(
+            contract.endorsements.all(), many=True
+        ).data,
+        "current_position": calculate_position(contract),
+    })
+
+
+@api_view(["GET"])
+def contract_position(request, mga_reference):
+    contract = get_object_or_404(Contract, mga_reference=mga_reference)
+    as_at = request.query_params.get("as_at")
+
+    if as_at is not None:
+        try:
+            parsed_date = date.fromisoformat(as_at)
+            if parsed_date.isoformat() != as_at:
+                raise ValueError
+            as_at = parsed_date
+        except ValueError:
+            raise ValidationError({"as_at": "Provide a valid date in YYYY-MM-DD format."})
+
+    return Response(calculate_position(contract, as_at))
 
 
 @api_view(["GET"])

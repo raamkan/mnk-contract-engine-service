@@ -52,4 +52,25 @@ return 400 with errors keyed by field. The original slip is not modified.
   alter a stored cancellation refund is also rejected, rather than silently
   rewriting that refund.
 - GET `/api/contracts/` currently lists original slips. Returning current
-  positions and exposing the position API are subsequent implementation steps.
+  positions in that list is a subsequent implementation step.
+
+## Contract details
+
+`GET /api/contracts/{mga_reference}/` returns `slip`, `endorsements`, and
+`current_position`. Unknown references return 404. All endorsements are listed;
+only agreed endorsements effective on or before today affect the position,
+applied in number order. Today uses Django's configured timezone (currently UTC).
+
+Positions before inception contain no applied endorsements. Recorded dates do
+not filter positions. Cancellation ends cover the preceding day; ordinary
+expiry does not introduce a new status, so an uncancelled position stays BOUND.
+`cancellation_effective_date` is JSON `null` unless cancelled. Amounts are decimal
+strings rounded half up to two places. Net premium uses rounded gross premium;
+our net premium uses rounded net premium, then is itself rounded half up.
+
+## Position on a date
+
+`GET /api/contracts/{mga_reference}/position/?as_at=2026-09-30` returns the
+position directly. Omit `as_at` to use today. Supplied dates must be valid and
+match `YYYY-MM-DD` exactly; empty or malformed dates return 400 with an `as_at`
+error. Unknown contract references return 404.

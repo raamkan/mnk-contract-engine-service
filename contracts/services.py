@@ -1,10 +1,65 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
+from django.utils import timezone
 
 from .fields import HalfUpDecimalField
+
+
+def calculate_position(contract, as_at=None):
+    as_at = as_at or timezone.localdate()
+    position = {
+        "mga_reference": contract.mga_reference,
+        "as_at": as_at.isoformat(),
+        "insured_name": contract.insured_name,
+        "status": "BOUND",
+        "inception_date": contract.inception_date.isoformat(),
+        "expiry_date": contract.expiry_date.isoformat(),
+        "cancellation_effective_date": None,
+        "currency": contract.currency,
+        "sum_insured": str(contract.sum_insured),
+        "applied_endorsements": [],
+    }
+    gross = contract.gross_premium
+
+    if as_at >= contract.inception_date:
+        endorsements = contract.endorsements.filter(
+            status="AGREED", effective_date__lte=as_at
+        ).order_by("endorsement_number")
+
+        for endorsement in endorsements:
+            gross += endorsement.premium_change
+            position["applied_endorsements"].append(endorsement.endorsement_number)
+
+            if endorsement.type == "CHANGE_SUM_INSURED":
+                position["sum_insured"] = str(Decimal(
+                    endorsement.changes["sum_insured"]
+                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            elif endorsement.type == "CHANGE_DETAILS":
+                position["insured_name"] = endorsement.changes["insured_name"]
+            elif endorsement.type == "EXTENSION":
+                position["expiry_date"] = endorsement.changes["expiry_date"]
+            elif endorsement.type == "CANCELLATION":
+                position["status"] = "CANCELLED"
+                position["cancellation_effective_date"] = endorsement.effective_date.isoformat()
+
+    if position["status"] == "CANCELLED":
+        cancellation_date = date.fromisoformat(position["cancellation_effective_date"])
+        position["expiry_date"] = (cancellation_date - timedelta(days=1)).isoformat()
+
+    gross = gross.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    net = (gross * (1 - contract.brokerage_pct / Decimal("100"))).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+    our_net = (net * contract.signed_line_pct / Decimal("100")).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+    position["gross_premium"] = str(gross)
+    position["net_premium"] = str(net)
+    position["our_net_premium"] = str(our_net)
+    return position
 
 
 def get_current_expiry(contract, effective_date, extra_endorsement=None):
