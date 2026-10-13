@@ -32,6 +32,27 @@ class ContractCreateTests(APITestCase):
             mga_reference=self.payload["mga_reference"]
         ).exists())
 
+    def test_list_empty_contracts(self):
+        response = self.client.get("/api/contracts/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+    def test_list_contracts(self):
+        self.client.post("/api/contracts/", self.payload, format="json")
+        second_payload = {**self.payload, "mga_reference": "MNK-PR-2026-002"}
+        self.client.post("/api/contracts/", second_payload, format="json")
+
+        response = self.client.get("/api/contracts/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [slip["mga_reference"] for slip in response.data],
+            ["MNK-PR-2026-001", "MNK-PR-2026-002"],
+        )
+        self.assertEqual(response.data[0]["gross_premium"], "120000.00")
+        self.assertEqual(response.data[0]["status"], "BOUND")
+
     def test_missing_field(self):
         del self.payload["insured_name"]
         response = self.client.post("/api/contracts/", self.payload, format="json")

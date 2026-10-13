@@ -1,9 +1,9 @@
 from django.urls import path
 
-from .views import create_contract
+from .views import contracts
 
 
 urlpatterns = [
-    path("contracts/", create_contract, name="contract-create"),
+    path("contracts/", contracts, name="contract-create"),
 ]
 

@@ -3,11 +3,17 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from .models import Contract
 from .serializers import ContractSerializer
 
 
-@api_view(["POST"])
-def create_contract(request):
+@api_view(["GET", "POST"])
+def contracts(request):
+    if request.method == "GET":
+        slips = Contract.objects.all().order_by("mga_reference")
+        serializer = ContractSerializer(slips, many=True)
+        return Response(serializer.data)
+
     serializer = ContractSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()
