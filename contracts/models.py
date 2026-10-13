@@ -20,3 +20,50 @@ class Contract(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     def __str__(self):
         return self.mga_reference
+
+
+class Endorsement(models.Model):
+    contract = models.ForeignKey(
+        Contract,
+        on_delete=models.PROTECT,
+        related_name="endorsements",
+    )
+
+    endorsement_number = models.PositiveIntegerField()
+    type = models.CharField(
+        max_length=30,
+        choices=[
+            ("CHANGE_SUM_INSURED", "Change sum insured"),
+            ("CHANGE_DETAILS", "Change details"),
+            ("PREMIUM_ADJUSTMENT", "Premium adjustment"),
+            ("EXTENSION", "Extension"),
+            ("CANCELLATION", "Cancellation"),
+        ],
+    )
+    status = models.CharField(
+        max_length=10,
+        choices=[("DRAFT", "Draft"), ("AGREED", "Agreed")],
+    )
+
+    effective_date = models.DateField()
+    recorded_date = models.DateField()
+
+    premium_change = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+    )
+
+    changes = models.JSONField(default=dict)
+    reason = models.TextField()
+
+    class Meta:
+        ordering = ["endorsement_number"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["contract", "endorsement_number"],
+                name="unique_endorsement_number_per_contract",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.contract.mga_reference} - {self.endorsement_number}"
