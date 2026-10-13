@@ -1,2 +1,2 @@
-# nmk-contract-engine-service
+# mnk-contract-engine-service
 contract engine service built using python and Django
